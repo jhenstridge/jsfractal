@@ -12,7 +12,7 @@ var Mandelbrot = function (canvas, n_workers) {
     for (var i = 0; i < n_workers; i++) {
         var worker = new Worker("worker.js");
         worker.addEventListener("message", function(event) {
-                self.received_row(event)
+                self.received_row(event.target, event.data)
             }, false);
         worker.idle = true;
         this.workers.push(worker);
@@ -43,9 +43,7 @@ Mandelbrot.prototype = {
         this.ctx.putImageData(this.row_data, 0, data.row);
     },
 
-    received_row: function (event) {
-        var worker = event.target;
-        var data = event.data;
+    received_row: function (worker, data) {
         if (data.generation == this.generation) {
             // Interesting data: display it.
             this.draw_row(data);
