@@ -25,9 +25,24 @@ var Mandelbrot = function (canvas, n_workers) {
     this.r_max = 1.5;
     this.generation = 0;
     this.nextrow = 0;
+
+    this.make_palette()
 }
 
 Mandelbrot.prototype = {
+    make_palette: function() {
+        this.palette = []
+        // wrap values to a saw tooth pattern.
+        function wrap(x) {
+            x = ((x + 256) & 0x1ff) - 256;
+            if (x < 0) x = -x;
+            return x;
+        }
+        for (i = 0; i <= 1024; i++) {
+            this.palette.push([wrap(7*i), wrap(5*i), wrap(11*i)]);
+        }
+    },
+
     draw_row: function(data) {
         var values = data.values;
         var pdata = this.row_data.data;
@@ -37,9 +52,10 @@ Mandelbrot.prototype = {
             if (values[i] < 0) {
                 pdata[4*i] = pdata[4*i+1] = pdata[4*i+2] = 0;
             } else {
-                pdata[4*i] = (-7*values[i]) & 255;
-                pdata[4*i+1] = (-5*values[i]) & 255;
-                pdata[4*i+2] = (-11*values[i]) & 255;
+                var colour = this.palette[values[i]];
+                pdata[4*i] = colour[0];
+                pdata[4*i+1] = colour[1];
+                pdata[4*i+2] = colour[2];
             }
         }
         this.ctx.putImageData(this.row_data, 0, data.row);
