@@ -6,7 +6,7 @@ var Mandelbrot = function (canvas, n_workers) {
     this.workers = [];
     for (var i = 0; i < n_workers; i++) {
         var worker = new Worker("worker.js");
-        var self = this;
+        var self = this; // for use in onmessage closure
         worker.onmessage = function(event) {self.received_row(event)};
         worker.idle = true;
         this.workers.push(worker);
@@ -25,16 +25,14 @@ Mandelbrot.prototype = {
         var pdata = this.row_data.data;
         for (var i = 0; i < this.row_data.width; i++) {
             var pixel;
-            if (values[i] < 0) {
-                pixel = 0.0;
-            } else {
-                pixel = 255 - 4*values[i];
-                if (pixel < 1) pixel = 1;
-            }
-            pdata[4*i] = pixel;
-            pdata[4*i+1] = pixel;
-            pdata[4*i+2] = pixel;
             pdata[4*i+3] = 255;
+            if (values[i] < 0) {
+                pdata[4*i] = pdata[4*i+1] = pdata[4*i+2] = 0;
+            } else {
+                pdata[4*i] = (-7*values[i]) & 255;
+                pdata[4*i+1] = (-5*values[i]) & 255;
+                pdata[4*i+2] = (-11*values[i]) & 255;
+            }
         }
         this.ctx.putImageData(this.row_data, 0, data.row);
     },
