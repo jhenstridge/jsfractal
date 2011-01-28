@@ -1,0 +1,14 @@
+<html>
+  <head>
+    <title>Mandelbrot</title>
+    <script src="mandelbrot.js"></script>
+  </head>
+  <body>
+    <canvas id="fractal" width="640" height="480" style="padding:2em;
+    margin: 1em; border: 1px solid black"></canvas>
+    <script>
+      mandelbrot = new Mandelbrot(document.getElementById("fractal"), 100);
+      mandelbrot.start();
+    </script>
+  </body>
+</html>
