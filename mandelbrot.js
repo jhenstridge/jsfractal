@@ -1,13 +1,19 @@
 var Mandelbrot = function (canvas, n_workers) {
+    var self = this; // for use in closures where 'this' is rebound
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.row_data = this.ctx.createImageData(canvas.width, 1);
+    this.canvas.addEventListener("click", function(event) {
+            self.click(event.clientX - canvas.offsetLeft,
+                       event.clientY - canvas.offsetTop);
+        }, false);
 
     this.workers = [];
     for (var i = 0; i < n_workers; i++) {
         var worker = new Worker("worker.js");
-        var self = this; // for use in onmessage closure
-        worker.onmessage = function(event) {self.received_row(event)};
+        worker.addEventListener("message", function(event) {
+                self.received_row(event)
+            }, false);
         worker.idle = true;
         this.workers.push(worker);
     }
@@ -37,7 +43,7 @@ Mandelbrot.prototype = {
         this.ctx.putImageData(this.row_data, 0, data.row);
     },
 
-    received_row: function received_row(event) {
+    received_row: function (event) {
         var worker = event.target;
         var data = event.data;
         if (data.generation == this.generation) {
@@ -64,12 +70,26 @@ Mandelbrot.prototype = {
         }
     },
 
-    start: function(){
+    start: function() {
         this.generation++;
+        this.nextrow = 0;
         for (var i = 0; i < this.workers.length; i++) {
             var worker = this.workers[i];
             if (worker.idle)
                 this.process_row(worker);
         }
+    },
+
+    click: function(x, y) {
+        var width = this.r_max - this.r_min;
+        var height = this.i_min - this.i_max;
+        click_r = this.r_min + width * x / this.canvas.width;
+        click_i = this.i_max + height * y / this.canvas.height;
+
+        this.r_min = click_r - width/4;
+        this.r_max = click_r + width/4;
+        this.i_max = click_i - height/4;
+        this.i_min = click_i + height/4;
+        this.start()
     },
 }
