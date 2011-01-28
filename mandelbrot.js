@@ -23,6 +23,10 @@ var Mandelbrot = function (canvas, n_workers) {
     this.i_min = -1.5;
     this.r_min = -2.5;
     this.r_max = 1.5;
+    this.max_iter = 1024;
+    this.escape = 100;
+
+
     this.generation = 0;
     this.nextrow = 0;
 
@@ -38,7 +42,7 @@ Mandelbrot.prototype = {
             if (x < 0) x = -x;
             return x;
         }
-        for (i = 0; i <= 1024; i++) {
+        for (i = 0; i <= this.max_iter; i++) {
             this.palette.push([wrap(7*i), wrap(5*i), wrap(11*i)]);
         }
     },
@@ -81,7 +85,9 @@ Mandelbrot.prototype = {
                 generation: this.generation,
                 r_min: this.r_min,
                 r_max: this.r_max,
-                i: this.i_max + (this.i_min - this.i_max) * row / this.canvas.height
+                i: this.i_max + (this.i_min - this.i_max) * row / this.canvas.height,
+                max_iter: this.max_iter,
+                escape: this.escape,
            })
         }
     },
