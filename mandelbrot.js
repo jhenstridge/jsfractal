@@ -4,8 +4,10 @@ var Mandelbrot = function (canvas, n_workers) {
     this.ctx = canvas.getContext("2d");
     this.row_data = this.ctx.createImageData(canvas.width, 1);
     this.canvas.addEventListener("click", function(event) {
-            self.click(event.clientX - canvas.offsetLeft,
-                       event.clientY - canvas.offsetTop);
+            self.click(event.clientX + document.body.scrollLeft +
+                       document.documentElement.scrollLeft - canvas.offsetLeft,
+                       event.clientY + document.body.scrollTop +
+                       document.documentElement.scrollTop - canvas.offsetTop);
         }, false);
 
     this.workers = [];
@@ -19,8 +21,8 @@ var Mandelbrot = function (canvas, n_workers) {
     }
     this.i_max = 1.5;
     this.i_min = -1.5;
-    this.r_min = -2.0;
-    this.r_max = 2.0;
+    this.r_min = -2.5;
+    this.r_max = 1.5;
     this.generation = 0;
     this.nextrow = 0;
 }
@@ -84,10 +86,10 @@ Mandelbrot.prototype = {
         click_r = this.r_min + width * x / this.canvas.width;
         click_i = this.i_max + height * y / this.canvas.height;
 
-        this.r_min = click_r - width/4;
-        this.r_max = click_r + width/4;
-        this.i_max = click_i - height/4;
-        this.i_min = click_i + height/4;
+        this.r_min = click_r - width/8;
+        this.r_max = click_r + width/8;
+        this.i_max = click_i - height/8;
+        this.i_min = click_i + height/8;
         this.start()
     },
 }
