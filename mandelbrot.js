@@ -13,9 +13,9 @@ var Mandelbrot = function (canvas, n_workers) {
     this.workers = [];
     for (var i = 0; i < n_workers; i++) {
         var worker = new Worker("worker.js");
-        worker.addEventListener("message", function(event) {
+        worker.onmessage = function(event) {
                 self.received_row(event.target, event.data)
-            }, false);
+        }
         worker.idle = true;
         this.workers.push(worker);
     }

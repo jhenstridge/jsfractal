@@ -1,4 +1,4 @@
-function onmessage(event) {
+self.onmessage = function onmessage(event) {
     var data = event.data;
     var c_i = data.i;
     var max_iter = data.max_iter;
@@ -18,5 +18,5 @@ function onmessage(event) {
         }
         data.values.push(iter);
     }
-    postMessage(data);
+    self.postMessage(data);
 }
