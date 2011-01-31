@@ -1,4 +1,4 @@
-self.onmessage = function onmessage(event) {
+self.onmessage = function (event) {
     var data = event.data;
     var c_i = data.i;
     var max_iter = data.max_iter;
