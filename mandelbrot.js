@@ -9,6 +9,9 @@ var Mandelbrot = function (canvas, n_workers) {
                        event.clientY + document.body.scrollTop +
                        document.documentElement.scrollTop - canvas.offsetTop);
         }, false);
+    window.addEventListener("resize", function(event) {
+        self.resize_to_parent();
+    }, false);
 
     this.workers = [];
     for (var i = 0; i < n_workers; i++) {
@@ -92,7 +95,7 @@ Mandelbrot.prototype = {
         }
     },
 
-    start: function() {
+    redraw: function() {
         this.generation++;
         this.nextrow = 0;
         for (var i = 0; i < this.workers.length; i++) {
@@ -105,13 +108,30 @@ Mandelbrot.prototype = {
     click: function(x, y) {
         var width = this.r_max - this.r_min;
         var height = this.i_min - this.i_max;
-        click_r = this.r_min + width * x / this.canvas.width;
-        click_i = this.i_max + height * y / this.canvas.height;
+        var click_r = this.r_min + width * x / this.canvas.width;
+        var click_i = this.i_max + height * y / this.canvas.height;
 
         this.r_min = click_r - width/8;
         this.r_max = click_r + width/8;
         this.i_max = click_i - height/8;
         this.i_min = click_i + height/8;
-        this.start()
+        this.redraw()
     },
+
+    resize_to_parent: function() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+
+        // Adjust the horizontal scale to maintain aspect ratio
+        var width = ((this.i_max - this.i_min) *
+                     this.canvas.width / this.canvas.height);
+        var r_mid = (this.r_max + this.r_min) / 2;
+        this.r_min = r_mid - width/2;
+        this.r_max = r_mid + width/2;
+
+        // Reallocate the image data object used to draw rows.
+        this.row_data = this.ctx.createImageData(this.canvas.width, 1);
+
+        this.redraw();
+    }
 }
