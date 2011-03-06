@@ -4,11 +4,11 @@ var Mandelbrot = function (canvas, n_workers) {
     this.ctx = canvas.getContext("2d");
     this.row_data = this.ctx.createImageData(canvas.width, 1);
     this.canvas.addEventListener("click", function(event) {
-            self.click(event.clientX + document.body.scrollLeft +
-                       document.documentElement.scrollLeft - canvas.offsetLeft,
-                       event.clientY + document.body.scrollTop +
-                       document.documentElement.scrollTop - canvas.offsetTop);
-        }, false);
+        self.click(event.clientX + document.body.scrollLeft +
+                   document.documentElement.scrollLeft - canvas.offsetLeft,
+                   event.clientY + document.body.scrollTop +
+                   document.documentElement.scrollTop - canvas.offsetTop);
+    }, false);
     window.addEventListener("resize", function(event) {
         self.resize_to_parent();
     }, false);
@@ -133,5 +133,5 @@ Mandelbrot.prototype = {
         this.row_data = this.ctx.createImageData(this.canvas.width, 1);
 
         this.redraw();
-    }
+    },
 }
