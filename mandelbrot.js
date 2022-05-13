@@ -1,5 +1,5 @@
 var Mandelbrot = function (canvas, n_workers) {
-    var self = this; // for use in closures where 'this' is rebound
+    const self = this; // for use in closures where 'this' is rebound
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.row_data = this.ctx.createImageData(canvas.width, 1);
@@ -10,12 +10,12 @@ var Mandelbrot = function (canvas, n_workers) {
                    document.documentElement.scrollTop - canvas.offsetTop);
     }, false);
     window.addEventListener("resize", function(event) {
-        self.resize_to_parent();
+        requestAnimationFrame(() => self.resize_to_parent());
     }, false);
 
     this.workers = [];
-    for (var i = 0; i < n_workers; i++) {
-        var worker = new Worker("worker.js");
+    for (let i = 0; i < n_workers; i++) {
+        const worker = new Worker("worker.js");
         worker.onmessage = function(event) {
                 self.received_row(event.target, event.data)
         }
@@ -38,31 +38,31 @@ var Mandelbrot = function (canvas, n_workers) {
 
 Mandelbrot.prototype = {
     make_palette: function() {
-        this.palette = []
+        this.palette = new Uint8ClampedArray(this.max_iter * 3);
         // wrap values to a saw tooth pattern.
         function wrap(x) {
             x = ((x + 256) & 0x1ff) - 256;
             if (x < 0) x = -x;
             return x;
         }
-        for (i = 0; i <= this.max_iter; i++) {
-            this.palette.push([wrap(7*i), wrap(5*i), wrap(11*i)]);
+        for (let i = 0; i <= this.max_iter; i++) {
+            this.palette[3*i] = wrap(7*i);
+            this.palette[3*i+1] = wrap(5*i);
+            this.palette[3*i+2] = wrap(11*i);
         }
     },
 
     draw_row: function(data) {
-        var values = data.values;
-        var pdata = this.row_data.data;
-        for (var i = 0; i < this.row_data.width; i++) {
+        const values = data.values;
+        const pdata = this.row_data.data;
+        for (let i = 0; i < this.row_data.width; i++) {
             var pixel;
             pdata[4*i+3] = 255;
             if (values[i] < 0) {
-                pdata[4*i] = pdata[4*i+1] = pdata[4*i+2] = 0;
+                pdata.fill(0, 4*i, 4*i+3)
             } else {
-                var colour = this.palette[values[i]];
-                pdata[4*i] = colour[0];
-                pdata[4*i+1] = colour[1];
-                pdata[4*i+2] = colour[2];
+                const colour = this.palette.subarray(3*values[i], 3*values[i]+3);
+                pdata.set(colour, 4*i)
             }
         }
         this.ctx.putImageData(this.row_data, 0, data.row);
@@ -77,7 +77,7 @@ Mandelbrot.prototype = {
     },
 
     process_row: function(worker) {
-        var row = this.nextrow++;
+        const row = this.nextrow++;
         if (row >= this.canvas.height) {
             worker.idle = true;
         } else {
@@ -98,18 +98,18 @@ Mandelbrot.prototype = {
     redraw: function() {
         this.generation++;
         this.nextrow = 0;
-        for (var i = 0; i < this.workers.length; i++) {
-            var worker = this.workers[i];
+        for (let i = 0; i < this.workers.length; i++) {
+            const worker = this.workers[i];
             if (worker.idle)
                 this.process_row(worker);
         }
     },
 
     click: function(x, y) {
-        var width = this.r_max - this.r_min;
-        var height = this.i_min - this.i_max;
-        var click_r = this.r_min + width * x / this.canvas.width;
-        var click_i = this.i_max + height * y / this.canvas.height;
+        const width = this.r_max - this.r_min;
+        const height = this.i_min - this.i_max;
+        const click_r = this.r_min + width * x / this.canvas.width;
+        const click_i = this.i_max + height * y / this.canvas.height;
 
         this.r_min = click_r - width/8;
         this.r_max = click_r + width/8;
@@ -119,18 +119,19 @@ Mandelbrot.prototype = {
     },
 
     resize_to_parent: function() {
-        this.canvas.width = window.innerWidth;
-        this.canvas.height = window.innerHeight;
+        const width = this.canvas.clientWidth;
+        const height = this.canvas.clientHeight
+        this.canvas.width = width;
+        this.canvas.height = height;
 
         // Adjust the horizontal scale to maintain aspect ratio
-        var width = ((this.i_max - this.i_min) *
-                     this.canvas.width / this.canvas.height);
-        var r_mid = (this.r_max + this.r_min) / 2;
-        this.r_min = r_mid - width/2;
-        this.r_max = r_mid + width/2;
+        const r_size = (this.i_max - this.i_min) * width / height;
+        const r_mid = (this.r_max + this.r_min) / 2;
+        this.r_min = r_mid - r_size/2;
+        this.r_max = r_mid + r_size/2;
 
         // Reallocate the image data object used to draw rows.
-        this.row_data = this.ctx.createImageData(this.canvas.width, 1);
+        this.row_data = this.ctx.createImageData(width, 1);
 
         this.redraw();
     },
