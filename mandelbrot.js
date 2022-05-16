@@ -1,43 +1,41 @@
-var Mandelbrot = function (canvas, n_workers) {
-    const self = this; // for use in closures where 'this' is rebound
-    this.canvas = canvas;
-    this.ctx = canvas.getContext("2d");
-    this.row_data = this.ctx.createImageData(canvas.width, 1);
-    this.canvas.addEventListener("click", function(event) {
-        self.click(event.clientX + document.body.scrollLeft +
-                   document.documentElement.scrollLeft - canvas.offsetLeft,
-                   event.clientY + document.body.scrollTop +
-                   document.documentElement.scrollTop - canvas.offsetTop);
-    }, false);
-    window.addEventListener("resize", function(event) {
-        requestAnimationFrame(() => self.resize_to_parent());
-    }, false);
+class Mandelbrot {
+    constructor(canvas, n_workers) {
+        const self = this; // for use in closures where 'this' is rebound
+        this.canvas = canvas;
+        this.ctx = canvas.getContext("2d");
+        this.row_data = this.ctx.createImageData(canvas.width, 1);
+        this.canvas.addEventListener("click", function(event) {
+            self.click(event.clientX + document.body.scrollLeft +
+                       document.documentElement.scrollLeft - canvas.offsetLeft,
+                       event.clientY + document.body.scrollTop +
+                       document.documentElement.scrollTop - canvas.offsetTop);
+        }, false);
+        window.addEventListener("resize", this.queue_resize.bind(this), false);
 
-    this.workers = [];
-    for (let i = 0; i < n_workers; i++) {
-        const worker = new Worker("worker.js");
-        worker.onmessage = function(event) {
+        this.workers = [];
+        for (let i = 0; i < n_workers; i++) {
+            const worker = new Worker("worker.js");
+            worker.onmessage = function(event) {
                 self.received_row(event.target, event.data)
+            }
+            worker.idle = true;
+            this.workers.push(worker);
         }
-        worker.idle = true;
-        this.workers.push(worker);
+        this.i_max = 1.5;
+        this.i_min = -1.5;
+        this.r_min = -2.5;
+        this.r_max = 1.5;
+        this.max_iter = 1024;
+        this.escape = 100;
+
+        this.generation = 0;
+        this.nextrow = 0;
+        this.resize_queued = false
+
+        this.make_palette();
     }
-    this.i_max = 1.5;
-    this.i_min = -1.5;
-    this.r_min = -2.5;
-    this.r_max = 1.5;
-    this.max_iter = 1024;
-    this.escape = 100;
 
-
-    this.generation = 0;
-    this.nextrow = 0;
-
-    this.make_palette()
-}
-
-Mandelbrot.prototype = {
-    make_palette: function() {
+    make_palette() {
         this.palette = new Uint8ClampedArray(this.max_iter * 3);
         // wrap values to a saw tooth pattern.
         function wrap(x) {
@@ -50,9 +48,9 @@ Mandelbrot.prototype = {
             this.palette[3*i+1] = wrap(5*i);
             this.palette[3*i+2] = wrap(11*i);
         }
-    },
+    }
 
-    draw_row: function(data) {
+    draw_row(data) {
         const values = data.values;
         const pdata = this.row_data.data;
         for (let i = 0; i < this.row_data.width; i++) {
@@ -66,17 +64,17 @@ Mandelbrot.prototype = {
             }
         }
         this.ctx.putImageData(this.row_data, 0, data.row);
-    },
+    }
 
-    received_row: function (worker, data) {
+    received_row (worker, data) {
         if (data.generation == this.generation) {
             // Interesting data: display it.
             this.draw_row(data);
         }
         this.process_row(worker);
-    },
+    }
 
-    process_row: function(worker) {
+    process_row(worker) {
         const row = this.nextrow++;
         if (row >= this.canvas.height) {
             worker.idle = true;
@@ -93,9 +91,9 @@ Mandelbrot.prototype = {
                 escape: this.escape,
            })
         }
-    },
+    }
 
-    redraw: function() {
+    redraw() {
         this.generation++;
         this.nextrow = 0;
         for (let i = 0; i < this.workers.length; i++) {
@@ -103,9 +101,9 @@ Mandelbrot.prototype = {
             if (worker.idle)
                 this.process_row(worker);
         }
-    },
+    }
 
-    click: function(x, y) {
+    click(x, y) {
         const width = this.r_max - this.r_min;
         const height = this.i_min - this.i_max;
         const click_r = this.r_min + width * x / this.canvas.width;
@@ -116,9 +114,20 @@ Mandelbrot.prototype = {
         this.i_max = click_i - height/8;
         this.i_min = click_i + height/8;
         this.redraw()
-    },
+    }
 
-    resize_to_parent: function() {
+    queue_resize() {
+        if (this.resize_queued) {
+            return;
+        }
+        if (this.canvas.clientWidth == this.canvas.width && this.canvas.clientHeight == this.canvas.height) {
+            return;
+        }
+        this.resize_queued = true;
+        requestAnimationFrame(this.resize_to_parent.bind(this));
+    }
+
+    resize_to_parent() {
         const width = this.canvas.clientWidth;
         const height = this.canvas.clientHeight
         this.canvas.width = width;
@@ -129,10 +138,11 @@ Mandelbrot.prototype = {
         const r_mid = (this.r_max + this.r_min) / 2;
         this.r_min = r_mid - r_size/2;
         this.r_max = r_mid + r_size/2;
+        this.resize_queued = false;
 
         // Reallocate the image data object used to draw rows.
         this.row_data = this.ctx.createImageData(width, 1);
 
         this.redraw();
-    },
+    }
 }

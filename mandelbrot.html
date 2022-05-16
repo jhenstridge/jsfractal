@@ -21,7 +21,7 @@
           var canvas = document.getElementById("fractal")
           mandelbrot = new Mandelbrot(canvas, navigator.hardwareConcurrency);
           // This will resize the canvas and kick off the initial redraw.
-          mandelbrot.resize_to_parent();
+          mandelbrot.queue_resize();
       }, false);
     </script>
   </head>
