@@ -36,7 +36,7 @@ class Mandelbrot {
     }
 
     make_palette() {
-        this.palette = new Uint8ClampedArray(this.max_iter * 3);
+        const palette = new Uint8ClampedArray((this.max_iter + 1) * 4);
         // wrap values to a saw tooth pattern.
         function wrap(x) {
             x = ((x + 256) & 0x1ff) - 256;
@@ -44,23 +44,27 @@ class Mandelbrot {
             return x;
         }
         for (let i = 0; i <= this.max_iter; i++) {
-            this.palette[3*i] = wrap(7*i);
-            this.palette[3*i+1] = wrap(5*i);
-            this.palette[3*i+2] = wrap(11*i);
+            palette[4*i] = wrap(7*i);
+            palette[4*i+1] = wrap(5*i);
+            palette[4*i+2] = wrap(11*i);
+            palette[4*i+3] = 255;
         }
+        palette[4*this.max_iter] = 0;
+        palette[4*this.max_iter+1] = 0;
+        palette[4*this.max_iter+2] = 0;
+        palette[4*this.max_iter+3] = 255;
+        this.palette = new Uint32Array(palette.buffer);
     }
 
     draw_row(data) {
         const values = data.values;
-        const pdata = this.row_data.data;
+        const pdata = new Uint32Array(this.row_data.data.buffer);
         for (let i = 0; i < this.row_data.width; i++) {
             var pixel;
-            pdata[4*i+3] = 255;
             if (values[i] < 0) {
-                pdata.fill(0, 4*i, 4*i+3)
+                pdata[i] = this.palette[this.max_iter];
             } else {
-                const colour = this.palette.subarray(3*values[i], 3*values[i]+3);
-                pdata.set(colour, 4*i)
+                pdata[i] = this.palette[values[i]];
             }
         }
         this.ctx.putImageData(this.row_data, 0, data.row);
