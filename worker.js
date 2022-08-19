@@ -1,7 +1,7 @@
 const max_iter = 1024;
 const escape = 100;
 
-const palette = new Uint32Array(function() {
+const palette = new Uint32Array((() => {
     const p = new Uint8ClampedArray((max_iter + 1) * 4);
     function wrap(x) {
         x = ((x + 256) & 0x1ff) - 256;
@@ -19,10 +19,10 @@ const palette = new Uint32Array(function() {
     p[4*max_iter+2] = 0;
     p[4*max_iter+3] = 255;
     return p.buffer;
-}());
+})());
 
 
-self.onmessage = function (event) {
+self.onmessage = (event) => {
     const data = event.data;
     const c_i = data.i;
     data.values = new Uint32Array(data.width);
@@ -39,4 +39,4 @@ self.onmessage = function (event) {
         data.values[i] = palette[iter];
     }
     self.postMessage(data, [data.values.buffer]);
-}
+};

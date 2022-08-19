@@ -1,10 +1,9 @@
 class Mandelbrot {
     constructor(canvas, n_workers) {
-        const self = this; // for use in closures where 'this' is rebound
         this.canvas = canvas;
         this.ctx = canvas.getContext("2d");
-        this.canvas.addEventListener("click", function(event) {
-            self.click(event.clientX + document.body.scrollLeft +
+        this.canvas.addEventListener("click", (event) => {
+            this.click(event.clientX + document.body.scrollLeft +
                        document.documentElement.scrollLeft - canvas.offsetLeft,
                        event.clientY + document.body.scrollTop +
                        document.documentElement.scrollTop - canvas.offsetTop);
@@ -14,8 +13,8 @@ class Mandelbrot {
         this.workers = [];
         for (let i = 0; i < n_workers; i++) {
             const worker = new Worker("worker.js");
-            worker.onmessage = function(event) {
-                self.received_row(event.target, event.data)
+            worker.onmessage = (event) => {
+                this.received_row(event.target, event.data);
             }
             worker.idle = true;
             this.workers.push(worker);
