@@ -24,19 +24,21 @@ const palette = new Uint32Array((() => {
 
 self.onmessage = (event) => {
     const data = event.data;
-    const c_i = data.i;
-    data.values = new Uint32Array(data.width);
-    for (let i = 0; i < data.width; i++) {
-        const c_r = data.r_min + (data.r_max - data.r_min) * i / data.width;
-        let z_r = 0, z_i = 0;
-        let iter;
-        for (iter = 0; z_r*z_r + z_i*z_i < escape && iter < max_iter; iter++) {
-            // z -> z^2 + c
-            const tmp = z_r*z_r - z_i*z_i + c_r;
-            z_i = 2 * z_r * z_i + c_i;
-            z_r = tmp;
+    for (let y = 0; y < data.height; y++) {
+        const c_i = data.i_lo + (data.i_hi - data.i_lo) * y / data.height;
+        for (let x = 0; x < data.width; x++) {
+            const c_r = data.r_lo + (data.r_hi - data.r_lo) * x / data.width;
+
+            let z_r = 0, z_i = 0;
+            let iter;
+            for (iter = 0; z_r*z_r + z_i*z_i < escape && iter < max_iter; iter++) {
+                // z -> z^2 + c
+                const tmp = z_r*z_r - z_i*z_i + c_r;
+                z_i = 2 * z_r * z_i + c_i;
+                z_r = tmp;
+            }
+            data.pixels[y*data.width+x] = palette[iter];
         }
-        data.values[i] = palette[iter];
     }
-    self.postMessage(data, [data.values.buffer]);
+    self.postMessage(data, [data.pixels.buffer]);
 };
