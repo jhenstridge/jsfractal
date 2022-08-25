@@ -30,7 +30,8 @@ class Mandelbrot {
         this.nextblock = null;
 
         this.workers = [];
-        for (let i = 0; i < navigator.hardwareConcurrency; i++) {
+        const n_workers = navigator.hardwareConcurrency || 4;
+        for (let i = 0; i < n_workers; i++) {
             const worker = new Worker("worker.js");
             worker.onmessage = (event) => {
                 this.received_row(event.target, event.data);
@@ -172,9 +173,11 @@ class Mandelbrot {
 
         const dx = x - this.last_pos.x;
         const dy = y - this.last_pos.y;
-        const contents = this.ctx.getImageData(
-            0, 0, this.canvas.width, this.canvas.height);
-        this.ctx.putImageData(contents, dx, dy);
+        this.ctx.save();
+        this.ctx.globalCompositeOperation = "copy";
+        this.ctx.imageSmoothingEnabled = false;
+        this.ctx.drawImage(this.canvas, dx, dy);
+        this.ctx.restore();
 
         this.last_pos.x = x;
         this.last_pos.y = y;
