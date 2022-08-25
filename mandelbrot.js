@@ -1,21 +1,36 @@
+"use strict";
+
 class Mandelbrot {
-    constructor(canvas, n_workers) {
-        this.canvas = canvas;
-        this.ctx = canvas.getContext("2d");
-        this.canvas.addEventListener("click", (event) => {
-            this.click(event.clientX + document.body.scrollLeft +
-                       document.documentElement.scrollLeft - canvas.offsetLeft,
-                       event.clientY + document.body.scrollTop +
-                       document.documentElement.scrollTop - canvas.offsetTop);
-        }, false);
-        window.addEventListener("resize", this.queue_resize.bind(this), false);
+    constructor(fractal) {
+        this.container = fractal;
+        this.canvas = fractal.querySelector("canvas");
+        this.toolbar = new Toolbar(fractal.querySelector(".toolbar"));
+
+        this.toolbar.setVisible("restore", false);
+        this.toolbar.onclick = (id) => this.select_tool(id);
+        this.select_tool("zoom-in");
+        this.container.addEventListener("fullscreenchange", (event) => {
+            this.fullscreen_changed();
+        });
+
+        this.ctx = this.canvas.getContext("2d");
+        this.canvas.addEventListener("pointerdown", (event) => this.pointerdown(event));
+        this.canvas.addEventListener("pointermove", (event) => this.pointermove(event));
+        this.canvas.addEventListener("pointerup", (event) => this.pointerup(event));
+        this.canvas.addEventListener("pointerout", (event) => this.pointerout(event));
+        this.canvas.addEventListener("click", (event) => this.click(event));
+        window.addEventListener("resize", (event) => this.queue_resize());
+
+        this.in_drag = false;
+        this.drag_pos = {x: 0, y: 0};
+        this.last_pos = {x: 0, y: 0};
 
         this.generation = 0;
         this.block_size = 128;
         this.nextblock = null;
 
         this.workers = [];
-        for (let i = 0; i < n_workers; i++) {
+        for (let i = 0; i < navigator.hardwareConcurrency; i++) {
             const worker = new Worker("worker.js");
             worker.onmessage = (event) => {
                 this.received_row(event.target, event.data);
@@ -48,12 +63,21 @@ class Mandelbrot {
     }
 
     process_row(worker) {
+        if (this.nextblock == null) {
+            worker.idle = true;
+            return;
+        }
         const {value: data, done} = this.nextblock.next();
         if (!done) {
             data.pixels = worker.pixels;
             worker.postMessage(data, [data.pixels.buffer]);
         }
         worker.idle = done;
+    }
+
+    stop_draw() {
+        this.generation++;
+        this.nextblock = null;
     }
 
     redraw() {
@@ -87,17 +111,124 @@ class Mandelbrot {
         }
     }
 
-    click(x, y) {
+    select_tool(id) {
+        switch (id) {
+        case "move":
+            this.active_tool = id;
+            this.toolbar.setActive(id);
+            this.canvas.style.cursor = "grab";
+            break;
+        case "zoom-in":
+            this.active_tool = id;
+            this.toolbar.setActive(id);
+            this.canvas.style.cursor = "zoom-in";
+            break;
+        case "zoom-out":
+            this.active_tool = id;
+            this.toolbar.setActive(id);
+            this.canvas.style.cursor = "zoom-out";
+            break;
+        case "reload":
+            this.i_lo = 1.5;
+            this.i_hi = -1.5;
+            this.r_lo = -2.5;
+            this.r_hi = 1.5;
+            // resize_to_parent will adjust viewport to maintain
+            // correct aspect ratio.
+            this.resize_to_parent();
+            break;
+        case "fullscreen":
+            this.container.requestFullscreen();
+            break;
+        case "restore":
+            document.exitFullscreen();
+            break;
+        }
+    }
+
+    fullscreen_changed() {
+        this.toolbar.setVisible("fullscreen", !document.fullscreenElement);
+        this.toolbar.setVisible("restore", !!document.fullscreenElement);
+    }
+
+    pointerdown(event) {
+        if (this.active_tool != "move") return;
+        if (event.button != 0) return;
+
+        this.stop_draw();
+        const rect = event.currentTarget.getBoundingClientRect();
+        this.drag_pos.x = this.last_pos.x = event.clientX - rect.left;
+        this.drag_pos.y = this.last_pos.y = event.clientY - rect.top;
+        this.in_drag = true;
+        this.canvas.style.cursor = "grabbing";
+    }
+
+    pointermove(event) {
+        if (this.active_tool != "move") return;
+        if (!this.in_drag) return;
+
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = event.clientX - rect.left, y = event.clientY - rect.top;
+
+        const dx = x - this.last_pos.x;
+        const dy = y - this.last_pos.y;
+        const contents = this.ctx.getImageData(
+            0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.putImageData(contents, dx, dy);
+
+        this.last_pos.x = x;
+        this.last_pos.y = y;
+    }
+
+    pointerup(event) {
+        if (this.active_tool != "move") return;
+
+        if (this.in_drag) {
+            this.canvas.style.cursor = "grab";
+            const rect = event.currentTarget.getBoundingClientRect();
+            const x = event.clientX - rect.left, y = event.clientY - rect.top;
+
+            const delta_r = (x - this.drag_pos.x) * (this.r_hi - this.r_lo) / this.canvas.width;
+            const delta_i = (y - this.drag_pos.y) * (this.i_hi - this.i_lo) / this.canvas.height;
+
+            this.r_lo -= delta_r;
+            this.r_hi -= delta_r;
+            this.i_lo -= delta_i;
+            this.i_hi -= delta_i;
+            this.redraw();
+        }
+        this.in_drag = false;
+    }
+
+    pointerout(event) {
+        this.pointerup(event);
+    }
+
+    click(event) {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = event.clientX - rect.left, y = event.clientY - rect.top;
+
         const width = this.r_hi - this.r_lo;
         const height = this.i_hi - this.i_lo;
-        const click_r = this.r_lo + width * x / this.canvas.width;
-        const click_i = this.i_lo + height * y / this.canvas.height;
+        const click_r = this.r_lo + x * width / this.canvas.width;
+        const click_i = this.i_lo + y * height / this.canvas.height;
 
-        this.r_lo = click_r - width/8;
-        this.r_hi = click_r + width/8;
-        this.i_lo = click_i - height/8;
-        this.i_hi = click_i + height/8;
-        this.redraw()
+        switch (this.active_tool) {
+        case "zoom-in":
+            this.r_lo = click_r - width/8;
+            this.r_hi = click_r + width/8;
+            this.i_lo = click_i - height/8;
+            this.i_hi = click_i + height/8;
+            this.redraw();
+            break;
+        case "zoom-out":
+            this.r_lo = click_r - width*2;
+            this.r_hi = click_r + width*2;
+            this.i_lo = click_i - height*2;
+            this.i_hi = click_i + height*2;
+            this.redraw();
+            break;
+        }
     }
 
     queue_resize() {
@@ -108,7 +239,7 @@ class Mandelbrot {
             return;
         }
         this.resize_queued = true;
-        requestAnimationFrame(this.resize_to_parent.bind(this));
+        requestAnimationFrame(() => this.resize_to_parent());
     }
 
     resize_to_parent() {
@@ -127,3 +258,41 @@ class Mandelbrot {
         this.redraw();
     }
 }
+
+class Toolbar {
+    constructor(toolbar) {
+        this.toolbar = toolbar;
+        this.onclick = null;
+        this.buttons = {}
+        for (const anchor of this.toolbar.getElementsByTagName("a")) {
+            this.buttons[anchor.id] = anchor;
+            anchor.addEventListener("click", (event) => {
+                if (this.onclick != null) {
+                    this.onclick(event.currentTarget.id);
+                }
+                event.preventDefault();
+            });
+        }
+    }
+
+    setActive(id) {
+        for (const button in this.buttons) {
+            if (button == id) {
+                this.buttons[button].classList.add("active");
+            } else {
+                this.buttons[button].classList.remove("active");
+            }
+        }
+    }
+
+    setVisible(id, visible) {
+        const button = this.buttons[id];
+        button.style.display = visible ? "block" : "none";
+    }
+}
+
+window.addEventListener("load", (event) => {
+    const mandelbrot = new Mandelbrot(document.getElementById("fractal"));
+    // This will resize the canvas and kick off the initial redraw.
+    mandelbrot.queue_resize();
+});

@@ -1,3 +1,5 @@
+"use strict";
+
 const max_iter = 1024;
 const escape = 100;
 
