@@ -24,7 +24,7 @@ const palette = new Uint32Array((() => {
 })());
 
 
-self.onmessage = (event) => {
+self.addEventListener("message", (event) => {
     const data = event.data;
     for (let y = 0; y < data.height; y++) {
         const c_i = data.i_lo + (data.i_hi - data.i_lo) * y / data.height;
@@ -43,4 +43,4 @@ self.onmessage = (event) => {
         }
     }
     self.postMessage(data, [data.pixels.buffer]);
-};
+});

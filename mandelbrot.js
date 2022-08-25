@@ -33,9 +33,9 @@ class Mandelbrot {
         const n_workers = navigator.hardwareConcurrency || 4;
         for (let i = 0; i < n_workers; i++) {
             const worker = new Worker("worker.js");
-            worker.onmessage = (event) => {
+            worker.addEventListener("message", (event) => {
                 this.received_row(event.target, event.data);
-            }
+            });
             worker.idle = true;
             worker.pixels = new Uint32Array(this.block_size * this.block_size);
             this.workers.push(worker);
