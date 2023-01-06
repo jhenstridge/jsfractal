@@ -1,5 +1,14 @@
 "use strict";
 
+function transform_coords(x, y, width, height, r_mid, i_mid, scale) {
+    const avg = (width + height) / 2;
+    const r_span = width / avg * scale;
+    const i_span = -height / avg * scale;
+    const r = r_mid + (x / width - 0.5) * r_span;
+    const i = i_mid + (y / height - 0.5) * i_span;
+    return {r, i};
+}
+
 class Mandelbrot {
     constructor(fractal) {
         this.container = fractal;
@@ -40,10 +49,9 @@ class Mandelbrot {
             worker.pixels = new Uint32Array(this.block_size * this.block_size);
             this.workers.push(worker);
         }
-        this.i_lo = 1.5;
-        this.i_hi = -1.5;
-        this.r_lo = -2.5;
-        this.r_hi = 1.5;
+        this.i_mid = 0.0;
+        this.r_mid = -0.5;
+        this.scale = 3.5;
 
         this.resize_queued = false
     }
@@ -84,26 +92,28 @@ class Mandelbrot {
     redraw() {
         this.generation++;
 
-        this.nextblock = function* (generation, block_size, width, height, r_lo, r_hi, i_lo, i_hi) {
+        this.nextblock = function* (generation, block_size, width, height, r_mid, i_mid, scale) {
             for (let y = 0; y < height; y += block_size) {
                 for (let x = 0; x < width; x += block_size) {
+                    const {r: r_lo, i: i_lo} = transform_coords(x, y, width, height, r_mid, i_mid, scale);
+                    const {r: r_hi, i: i_hi} = transform_coords(x + block_size, y + block_size, width, height, r_mid, i_mid, scale);
                     yield {
                         generation,
                         x,
                         y,
                         width: block_size,
                         height: block_size,
-                        r_lo: r_lo + (r_hi - r_lo) * x / width,
-                        r_hi: r_lo + (r_hi - r_lo) * (x + block_size) / width,
-                        i_lo: i_lo + (i_hi - i_lo) * y / height,
-                        i_hi: i_lo + (i_hi - i_lo) * (y + block_size) / height,
+                        r_lo,
+                        r_hi,
+                        i_lo,
+                        i_hi,
                         pixels: null,
                     }
                 }
             }
         }(this.generation, this.block_size,
           this.canvas.width, this.canvas.height,
-          this.r_lo, this.r_hi, this.i_lo, this.i_hi);
+          this.r_mid, this.i_mid, this.scale);
 
         for (let i = 0; i < this.workers.length; i++) {
             const worker = this.workers[i];
@@ -130,10 +140,9 @@ class Mandelbrot {
             this.canvas.style.cursor = "zoom-out";
             break;
         case "reload":
-            this.i_lo = 1.5;
-            this.i_hi = -1.5;
-            this.r_lo = -2.5;
-            this.r_hi = 1.5;
+            this.i_mid = 0.0;
+            this.r_mid = -0.5;
+            this.scale = 3.5;
             // resize_to_parent will adjust viewport to maintain
             // correct aspect ratio.
             this.resize_to_parent();
@@ -190,14 +199,13 @@ class Mandelbrot {
             this.canvas.style.cursor = "grab";
             const rect = event.currentTarget.getBoundingClientRect();
             const x = event.clientX - rect.left, y = event.clientY - rect.top;
+            const scale = this.scale / ((this.canvas.width + this.canvas.height) / 2);
 
-            const delta_r = (x - this.drag_pos.x) * (this.r_hi - this.r_lo) / this.canvas.width;
-            const delta_i = (y - this.drag_pos.y) * (this.i_hi - this.i_lo) / this.canvas.height;
+            const delta_r = (x - this.drag_pos.x) * scale;
+            const delta_i = -(y - this.drag_pos.y) * scale;
 
-            this.r_lo -= delta_r;
-            this.r_hi -= delta_r;
-            this.i_lo -= delta_i;
-            this.i_hi -= delta_i;
+            this.r_mid -= delta_r;
+            this.i_mid -= delta_i;
             this.redraw();
         }
         this.in_drag = false;
@@ -211,24 +219,19 @@ class Mandelbrot {
         const rect = event.currentTarget.getBoundingClientRect();
         const x = event.clientX - rect.left, y = event.clientY - rect.top;
 
-        const width = this.r_hi - this.r_lo;
-        const height = this.i_hi - this.i_lo;
-        const click_r = this.r_lo + x * width / this.canvas.width;
-        const click_i = this.i_lo + y * height / this.canvas.height;
+        const {r: click_r, i: click_i} = transform_coords(x, y, this.canvas.width, this.canvas.height, this.r_mid, this.i_mid, this.scale)
 
         switch (this.active_tool) {
         case "zoom-in":
-            this.r_lo = click_r - width/8;
-            this.r_hi = click_r + width/8;
-            this.i_lo = click_i - height/8;
-            this.i_hi = click_i + height/8;
+            this.r_mid = click_r;
+            this.i_mid = click_i;
+            this.scale /= 4;
             this.redraw();
             break;
         case "zoom-out":
-            this.r_lo = click_r - width*2;
-            this.r_hi = click_r + width*2;
-            this.i_lo = click_i - height*2;
-            this.i_hi = click_i + height*2;
+            this.r_mid = click_r;
+            this.i_mid = click_i;
+            this.scale *= 4;
             this.redraw();
             break;
         }
@@ -251,13 +254,7 @@ class Mandelbrot {
         this.canvas.width = width;
         this.canvas.height = height;
 
-        // Adjust the horizontal scale to maintain aspect ratio
-        const r_size = (this.i_lo - this.i_hi) * width / height;
-        const r_mid = (this.r_hi + this.r_lo) / 2;
-        this.r_lo = r_mid - r_size/2;
-        this.r_hi = r_mid + r_size/2;
         this.resize_queued = false;
-
         this.redraw();
     }
 }
