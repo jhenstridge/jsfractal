@@ -22,6 +22,8 @@ class Mandelbrot {
             this.fullscreen_changed();
         });
 
+        this.canvas.width = this.canvas.clientWidth;
+        this.canvas.height = this.canvas.clientHeight;
         this.ctx = this.canvas.getContext("2d");
         this.canvas.addEventListener("pointerdown", (event) => this.pointerdown(event));
         this.canvas.addEventListener("pointermove", (event) => this.pointermove(event));
@@ -49,11 +51,41 @@ class Mandelbrot {
             worker.pixels = new Uint32Array(this.block_size * this.block_size);
             this.workers.push(worker);
         }
-        this.i_mid = 0.0;
+        this.resize_queued = false
+
+        window.addEventListener('hashchange', () => this.load_state());
+        this.load_state();
+    }
+
+    load_state() {
+        // Defaults
         this.r_mid = -0.5;
+        this.i_mid = 0.0;
         this.scale = 3.5;
 
-        this.resize_queued = false
+        // Params from URL fragment
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        if (params.has('r'))
+            this.r_mid = Number.parseFloat(params.get('r'));
+        if (params.has('i'))
+            this.i_mid = Number.parseFloat(params.get('i'));
+        if (params.has('scale'))
+            this.scale = Number.parseFloat(params.get('scale'));
+
+        this.redraw();
+    }
+
+    save_state(replace, r, i, scale) {
+        const params = new URLSearchParams();
+        params.set('r', r.toString());
+        params.set('i', i.toString());
+        params.set('scale', scale.toString());
+
+        const hash = `#${params.toString()}`;
+        if (replace)
+            window.location.replace(hash);
+        else
+            window.location.assign(hash);
     }
 
     draw_block(data) {
@@ -140,12 +172,7 @@ class Mandelbrot {
             this.canvas.style.cursor = "zoom-out";
             break;
         case "reload":
-            this.i_mid = 0.0;
-            this.r_mid = -0.5;
-            this.scale = 3.5;
-            // resize_to_parent will adjust viewport to maintain
-            // correct aspect ratio.
-            this.resize_to_parent();
+            this.save_state(false, -0.5, 0.0, 3.5);
             break;
         case "fullscreen":
             this.container.requestFullscreen();
@@ -204,9 +231,7 @@ class Mandelbrot {
             const delta_r = (x - this.drag_pos.x) * scale;
             const delta_i = -(y - this.drag_pos.y) * scale;
 
-            this.r_mid -= delta_r;
-            this.i_mid -= delta_i;
-            this.redraw();
+            this.save_state(true, this.r_mid - delta_r, this.i_mid - delta_i, this.scale);
         }
         this.in_drag = false;
     }
@@ -223,16 +248,10 @@ class Mandelbrot {
 
         switch (this.active_tool) {
         case "zoom-in":
-            this.r_mid = click_r;
-            this.i_mid = click_i;
-            this.scale /= 4;
-            this.redraw();
+            this.save_state(false, click_r, click_i, this.scale / 4);
             break;
         case "zoom-out":
-            this.r_mid = click_r;
-            this.i_mid = click_i;
-            this.scale *= 4;
-            this.redraw();
+            this.save_state(false, click_r, click_i, this.scale * 4);
             break;
         }
     }
@@ -293,6 +312,4 @@ class Toolbar {
 
 window.addEventListener("load", (event) => {
     const mandelbrot = new Mandelbrot(document.getElementById("fractal"));
-    // This will resize the canvas and kick off the initial redraw.
-    mandelbrot.queue_resize();
 });
