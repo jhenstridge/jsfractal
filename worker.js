@@ -23,22 +23,28 @@ const palette = new Uint32Array((() => {
     return p.buffer;
 })());
 
+const algorithms = {
+    mandelbrot: (c_r, c_i) => {
+        let z_r = 0, z_i = 0;
+        let iter;
+        for (iter = 0; z_r*z_r + z_i*z_i < escape && iter < max_iter; iter++) {
+            // z -> z^2 + c
+            const tmp = z_r*z_r - z_i*z_i + c_r;
+            z_i = 2 * z_r * z_i + c_i;
+            z_r = tmp;
+        }
+        return iter;
+    }
+}
 
 self.addEventListener("message", (event) => {
     const data = event.data;
+    const algorithm = algorithms[data.algorithm];
     for (let y = 0; y < data.height; y++) {
         const c_i = data.i_lo + (data.i_hi - data.i_lo) * y / data.height;
         for (let x = 0; x < data.width; x++) {
             const c_r = data.r_lo + (data.r_hi - data.r_lo) * x / data.width;
-
-            let z_r = 0, z_i = 0;
-            let iter;
-            for (iter = 0; z_r*z_r + z_i*z_i < escape && iter < max_iter; iter++) {
-                // z -> z^2 + c
-                const tmp = z_r*z_r - z_i*z_i + c_r;
-                z_i = 2 * z_r * z_i + c_i;
-                z_r = tmp;
-            }
+            const iter = algorithm(c_r, c_i);
             data.pixels[y*data.width+x] = palette[iter];
         }
     }

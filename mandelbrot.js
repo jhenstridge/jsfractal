@@ -9,6 +9,14 @@ function transform_coords(x, y, width, height, r_mid, i_mid, scale) {
     return {r, i};
 }
 
+const algorithms = {
+    'mandelbrot': {
+        r_mid: -0.5,
+        i_mid: 0.0,
+        scale: 3.5,
+    }
+};
+
 class Mandelbrot {
     constructor(fractal) {
         this.container = fractal;
@@ -65,6 +73,13 @@ class Mandelbrot {
 
         // Params from URL fragment
         const params = new URLSearchParams(window.location.hash.substring(1));
+        this.algorithm = 'mandelbrot';
+        if (params.has('algorithm') && params.get('algorithm') in algorithms)
+            this.algorithm = params.get('algorithm');
+        // Set defaults for chosen algorithm
+        this.r_mid = algorithms[this.algorithm].r_mid;
+        this.i_mid = algorithms[this.algorithm].i_mid;
+        this.scale = algorithms[this.algorithm].scale;
         if (params.has('r'))
             this.r_mid = Number.parseFloat(params.get('r'));
         if (params.has('i'))
@@ -75,8 +90,9 @@ class Mandelbrot {
         this.redraw();
     }
 
-    save_state(replace, r, i, scale) {
+    save_state(replace, algorithm, r, i, scale) {
         const params = new URLSearchParams();
+        params.set('algorithm', algorithm);
         params.set('r', r.toString());
         params.set('i', i.toString());
         params.set('scale', scale.toString());
@@ -124,7 +140,7 @@ class Mandelbrot {
     redraw() {
         this.generation++;
 
-        this.nextblock = function* (generation, block_size, width, height, r_mid, i_mid, scale) {
+        this.nextblock = function* (generation, block_size, width, height, r_mid, i_mid, scale, algorithm) {
             for (let y = 0; y < height; y += block_size) {
                 for (let x = 0; x < width; x += block_size) {
                     const {r: r_lo, i: i_lo} = transform_coords(x, y, width, height, r_mid, i_mid, scale);
@@ -139,13 +155,14 @@ class Mandelbrot {
                         r_hi,
                         i_lo,
                         i_hi,
+                        algorithm,
                         pixels: null,
                     }
                 }
             }
         }(this.generation, this.block_size,
           this.canvas.width, this.canvas.height,
-          this.r_mid, this.i_mid, this.scale);
+          this.r_mid, this.i_mid, this.scale, this.algorithm);
 
         for (let i = 0; i < this.workers.length; i++) {
             const worker = this.workers[i];
@@ -172,7 +189,8 @@ class Mandelbrot {
             this.canvas.style.cursor = "zoom-out";
             break;
         case "reload":
-            this.save_state(false, -0.5, 0.0, 3.5);
+            const defaults = algorithms[this.algorithm];
+            this.save_state(false, this.algorithm, defaults.r_mid, defaults.i_mid, defaults.scale);
             break;
         case "fullscreen":
             this.container.requestFullscreen();
@@ -231,7 +249,7 @@ class Mandelbrot {
             const delta_r = (x - this.drag_pos.x) * scale;
             const delta_i = -(y - this.drag_pos.y) * scale;
 
-            this.save_state(true, this.r_mid - delta_r, this.i_mid - delta_i, this.scale);
+            this.save_state(true, this.algorithm, this.r_mid - delta_r, this.i_mid - delta_i, this.scale);
         }
         this.in_drag = false;
     }
@@ -248,10 +266,10 @@ class Mandelbrot {
 
         switch (this.active_tool) {
         case "zoom-in":
-            this.save_state(false, click_r, click_i, this.scale / 4);
+            this.save_state(false, this.algorithm, click_r, click_i, this.scale / 4);
             break;
         case "zoom-out":
-            this.save_state(false, click_r, click_i, this.scale * 4);
+            this.save_state(false, this.algorithm, click_r, click_i, this.scale * 4);
             break;
         }
     }
