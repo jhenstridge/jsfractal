@@ -66,20 +66,22 @@ class Mandelbrot {
     }
 
     load_state() {
-        // Defaults
-        this.r_mid = -0.5;
-        this.i_mid = 0.0;
-        this.scale = 3.5;
-
         // Params from URL fragment
         const params = new URLSearchParams(window.location.hash.substring(1));
         this.algorithm = 'mandelbrot';
         if (params.has('algorithm') && params.get('algorithm') in algorithms)
             this.algorithm = params.get('algorithm');
+
         // Set defaults for chosen algorithm
-        this.r_mid = algorithms[this.algorithm].r_mid;
-        this.i_mid = algorithms[this.algorithm].i_mid;
-        this.scale = algorithms[this.algorithm].scale;
+        const defaults = algorithms[this.algorithm];
+        this.r_mid = defaults.r_mid;
+        this.i_mid = defaults.i_mid;
+        this.scale = defaults.scale;
+
+        this.julia = false;
+        this.c_r = 0.0;
+        this.c_i = 0.0;
+
         if (params.has('r'))
             this.r_mid = Number.parseFloat(params.get('r'));
         if (params.has('i'))
@@ -87,15 +89,29 @@ class Mandelbrot {
         if (params.has('scale'))
             this.scale = Number.parseFloat(params.get('scale'));
 
+        if (params.has('julia'))
+            this.julia = params.get('julia') === 'true';
+        if (this.julia) {
+            if (params.has('c_r'))
+                this.c_r = Number.parseFloat(params.get('c_r'));
+            if (params.has('c_i'))
+                this.c_i = Number.parseFloat(params.get('c_i'));
+        }
+
         this.redraw();
     }
 
-    save_state(replace, algorithm, r, i, scale) {
+    save_state(replace, algorithm, r, i, scale, julia, c_r, c_i) {
         const params = new URLSearchParams();
         params.set('algorithm', algorithm);
         params.set('r', r.toString());
         params.set('i', i.toString());
         params.set('scale', scale.toString());
+        if (julia) {
+            params.set('julia', 'true');
+            params.set('c_r', c_r.toString());
+            params.set('c_i', c_i.toString());
+        }
 
         const hash = `#${params.toString()}`;
         if (replace)
@@ -140,7 +156,7 @@ class Mandelbrot {
     redraw() {
         this.generation++;
 
-        this.nextblock = function* (generation, block_size, width, height, r_mid, i_mid, scale, algorithm) {
+        this.nextblock = function* (generation, block_size, width, height, r_mid, i_mid, scale, algorithm, julia, c_r, c_i) {
             for (let y = 0; y < height; y += block_size) {
                 for (let x = 0; x < width; x += block_size) {
                     const {r: r_lo, i: i_lo} = transform_coords(x, y, width, height, r_mid, i_mid, scale);
@@ -156,13 +172,17 @@ class Mandelbrot {
                         i_lo,
                         i_hi,
                         algorithm,
+                        julia,
+                        c_r,
+                        c_i,
                         pixels: null,
                     }
                 }
             }
         }(this.generation, this.block_size,
           this.canvas.width, this.canvas.height,
-          this.r_mid, this.i_mid, this.scale, this.algorithm);
+          this.r_mid, this.i_mid, this.scale, this.algorithm,
+          this.julia, this.c_r, this.c_i);
 
         for (let i = 0; i < this.workers.length; i++) {
             const worker = this.workers[i];
@@ -190,7 +210,7 @@ class Mandelbrot {
             break;
         case "reload":
             const defaults = algorithms[this.algorithm];
-            this.save_state(false, this.algorithm, defaults.r_mid, defaults.i_mid, defaults.scale);
+            this.save_state(false, this.algorithm, defaults.r_mid, defaults.i_mid, defaults.scale, this.julia, this.c_r, this.c_i);
             break;
         case "fullscreen":
             this.container.requestFullscreen();
@@ -249,7 +269,7 @@ class Mandelbrot {
             const delta_r = (x - this.drag_pos.x) * scale;
             const delta_i = -(y - this.drag_pos.y) * scale;
 
-            this.save_state(true, this.algorithm, this.r_mid - delta_r, this.i_mid - delta_i, this.scale);
+            this.save_state(true, this.algorithm, this.r_mid - delta_r, this.i_mid - delta_i, this.scale, this.julia, this.c_r, this.c_i);
         }
         this.in_drag = false;
     }
@@ -266,10 +286,10 @@ class Mandelbrot {
 
         switch (this.active_tool) {
         case "zoom-in":
-            this.save_state(false, this.algorithm, click_r, click_i, this.scale / 4);
+            this.save_state(false, this.algorithm, click_r, click_i, this.scale / 4, this.julia, this.c_r, this.c_i);
             break;
         case "zoom-out":
-            this.save_state(false, this.algorithm, click_r, click_i, this.scale * 4);
+            this.save_state(false, this.algorithm, click_r, click_i, this.scale * 4, this.julia, this.c_r, this.c_i);
             break;
         }
     }
