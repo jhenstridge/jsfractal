@@ -150,6 +150,16 @@ class Mandelbrot {
         case "reload":
             this.cfg.reset_view().save(false);
             break;
+        case "switch":
+            if (this.cfg.julia) {
+                this.cfg.switch_mode(false, 0, 0).reset_view().save(false);
+            } else {
+                // Let the user select a point
+                this.active_tool = id;
+                this.toolbar.setActive(id);
+                this.canvas.style.cursor = "crosshair";
+            }
+            break;
         case "fullscreen":
             this.container.requestFullscreen();
             break;
@@ -230,6 +240,10 @@ class Mandelbrot {
             break;
         case "zoom-out":
             this.cfg.pan_zoom(click_r, click_i, this.cfg.scale * 4).save(false);
+            break;
+        case "switch":
+            this.cfg.switch_mode(true, click_r, click_i).reset_view().save(false);
+            this.select_tool("move");
             break;
         }
     }
@@ -330,6 +344,18 @@ class Config {
         cfg.julia = this.julia;
         cfg.c_r = this.c_r;
         cfg.c_i = this.c_i;
+        return cfg;
+    }
+
+    switch_mode(julia, c_r, c_i) {
+        const cfg = new Config();
+        cfg.algorithm = this.algorithm;
+        cfg.r_mid = this.r_mid;
+        cfg.i_mid = this.i_mid;
+        cfg.scale = this.scale;
+        cfg.julia = julia;
+        cfg.c_r = c_r;
+        cfg.c_i = c_i;
         return cfg;
     }
 
