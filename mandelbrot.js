@@ -1,14 +1,5 @@
 "use strict";
 
-function transform_coords(x, y, width, height, r_mid, i_mid, scale) {
-    const avg = (width + height) / 2;
-    const r_span = width / avg * scale;
-    const i_span = -height / avg * scale;
-    const r = r_mid + (x / width - 0.5) * r_span;
-    const i = i_mid + (y / height - 0.5) * i_span;
-    return {r, i};
-}
-
 const algorithms = {
     'mandelbrot': {
         r_mid: -0.5,
@@ -66,58 +57,8 @@ class Mandelbrot {
     }
 
     load_state() {
-        // Params from URL fragment
-        const params = new URLSearchParams(window.location.hash.substring(1));
-        this.algorithm = 'mandelbrot';
-        if (params.has('algorithm') && params.get('algorithm') in algorithms)
-            this.algorithm = params.get('algorithm');
-
-        // Set defaults for chosen algorithm
-        const defaults = algorithms[this.algorithm];
-        this.r_mid = defaults.r_mid;
-        this.i_mid = defaults.i_mid;
-        this.scale = defaults.scale;
-
-        this.julia = false;
-        this.c_r = 0.0;
-        this.c_i = 0.0;
-
-        if (params.has('r'))
-            this.r_mid = Number.parseFloat(params.get('r'));
-        if (params.has('i'))
-            this.i_mid = Number.parseFloat(params.get('i'));
-        if (params.has('scale'))
-            this.scale = Number.parseFloat(params.get('scale'));
-
-        if (params.has('julia'))
-            this.julia = params.get('julia') === 'true';
-        if (this.julia) {
-            if (params.has('c_r'))
-                this.c_r = Number.parseFloat(params.get('c_r'));
-            if (params.has('c_i'))
-                this.c_i = Number.parseFloat(params.get('c_i'));
-        }
-
+        this.cfg = Config.load();
         this.redraw();
-    }
-
-    save_state(replace, algorithm, r, i, scale, julia, c_r, c_i) {
-        const params = new URLSearchParams();
-        params.set('algorithm', algorithm);
-        params.set('r', r.toString());
-        params.set('i', i.toString());
-        params.set('scale', scale.toString());
-        if (julia) {
-            params.set('julia', 'true');
-            params.set('c_r', c_r.toString());
-            params.set('c_i', c_i.toString());
-        }
-
-        const hash = `#${params.toString()}`;
-        if (replace)
-            window.location.replace(hash);
-        else
-            window.location.assign(hash);
     }
 
     draw_block(data) {
@@ -156,11 +97,11 @@ class Mandelbrot {
     redraw() {
         this.generation++;
 
-        this.nextblock = function* (generation, block_size, width, height, r_mid, i_mid, scale, algorithm, julia, c_r, c_i) {
+        this.nextblock = function* (generation, block_size, width, height, cfg) {
             for (let y = 0; y < height; y += block_size) {
                 for (let x = 0; x < width; x += block_size) {
-                    const {r: r_lo, i: i_lo} = transform_coords(x, y, width, height, r_mid, i_mid, scale);
-                    const {r: r_hi, i: i_hi} = transform_coords(x + block_size, y + block_size, width, height, r_mid, i_mid, scale);
+                    const {r: r_lo, i: i_lo} = cfg.transform_coords(x, y, width, height);
+                    const {r: r_hi, i: i_hi} = cfg.transform_coords(x + block_size, y + block_size, width, height);
                     yield {
                         generation,
                         x,
@@ -171,18 +112,16 @@ class Mandelbrot {
                         r_hi,
                         i_lo,
                         i_hi,
-                        algorithm,
-                        julia,
-                        c_r,
-                        c_i,
+                        algorithm: cfg.algorithm,
+                        julia: cfg.julia,
+                        c_r: cfg.c_r,
+                        c_i: cfg.c_i,
                         pixels: null,
                     }
                 }
             }
         }(this.generation, this.block_size,
-          this.canvas.width, this.canvas.height,
-          this.r_mid, this.i_mid, this.scale, this.algorithm,
-          this.julia, this.c_r, this.c_i);
+          this.canvas.width, this.canvas.height, this.cfg);
 
         for (let i = 0; i < this.workers.length; i++) {
             const worker = this.workers[i];
@@ -209,8 +148,7 @@ class Mandelbrot {
             this.canvas.style.cursor = "zoom-out";
             break;
         case "reload":
-            const defaults = algorithms[this.algorithm];
-            this.save_state(false, this.algorithm, defaults.r_mid, defaults.i_mid, defaults.scale, this.julia, this.c_r, this.c_i);
+            this.cfg.reset_view().save(false);
             break;
         case "fullscreen":
             this.container.requestFullscreen();
@@ -264,12 +202,14 @@ class Mandelbrot {
             this.canvas.style.cursor = "grab";
             const rect = event.currentTarget.getBoundingClientRect();
             const x = event.clientX - rect.left, y = event.clientY - rect.top;
-            const scale = this.scale / ((this.canvas.width + this.canvas.height) / 2);
+            const scale = this.cfg.scale / ((this.canvas.width + this.canvas.height) / 2);
 
             const delta_r = (x - this.drag_pos.x) * scale;
             const delta_i = -(y - this.drag_pos.y) * scale;
 
-            this.save_state(true, this.algorithm, this.r_mid - delta_r, this.i_mid - delta_i, this.scale, this.julia, this.c_r, this.c_i);
+            this.cfg.pan_zoom(this.cfg.r_mid - delta_r,
+                              this.cfg.i_mid - delta_i,
+                              this.cfg.scale).save(true);
         }
         this.in_drag = false;
     }
@@ -282,14 +222,14 @@ class Mandelbrot {
         const rect = event.currentTarget.getBoundingClientRect();
         const x = event.clientX - rect.left, y = event.clientY - rect.top;
 
-        const {r: click_r, i: click_i} = transform_coords(x, y, this.canvas.width, this.canvas.height, this.r_mid, this.i_mid, this.scale)
+        const {r: click_r, i: click_i} = this.cfg.transform_coords(x, y, this.canvas.width, this.canvas.height);
 
         switch (this.active_tool) {
         case "zoom-in":
-            this.save_state(false, this.algorithm, click_r, click_i, this.scale / 4, this.julia, this.c_r, this.c_i);
+            this.cfg.pan_zoom(click_r, click_i, this.cfg.scale / 4).save(false);
             break;
         case "zoom-out":
-            this.save_state(false, this.algorithm, click_r, click_i, this.scale * 4, this.julia, this.c_r, this.c_i);
+            this.cfg.pan_zoom(click_r, click_i, this.cfg.scale * 4).save(false);
             break;
         }
     }
@@ -313,6 +253,106 @@ class Mandelbrot {
 
         this.resize_queued = false;
         this.redraw();
+    }
+}
+
+class Config {
+    algorithm;
+    r_mid;
+    i_mid;
+    scale;
+
+    julia;
+    c_r;
+    c_i;
+
+    static load() {
+        // Params from URL fragment
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        const cfg = new Config();
+        cfg.algorithm = 'mandelbrot';
+        if (params.has('algorithm') && params.get('algorithm') in algorithms)
+            cfg.algorithm = params.get('algorithm');
+
+        // Set defaults for chosen algorithm
+        const defaults = algorithms[cfg.algorithm];
+        cfg.r_mid = defaults.r_mid;
+        cfg.i_mid = defaults.i_mid;
+        cfg.scale = defaults.scale;
+
+        cfg.julia = false;
+        cfg.c_r = 0.0;
+        cfg.c_i = 0.0;
+
+        if (params.has('r'))
+            cfg.r_mid = Number.parseFloat(params.get('r'));
+        if (params.has('i'))
+            cfg.i_mid = Number.parseFloat(params.get('i'));
+        if (params.has('scale'))
+            cfg.scale = Number.parseFloat(params.get('scale'));
+
+        if (params.has('julia'))
+            cfg.julia = params.get('julia') === 'true';
+        if (cfg.julia) {
+            if (params.has('c_r'))
+                cfg.c_r = Number.parseFloat(params.get('c_r'));
+            if (params.has('c_i'))
+                cfg.c_i = Number.parseFloat(params.get('c_i'));
+        }
+        return cfg;
+    }
+
+    save(replace) {
+        const params = new URLSearchParams();
+        params.set('algorithm', this.algorithm);
+        params.set('r', this.r_mid.toString());
+        params.set('i', this.i_mid.toString());
+        params.set('scale', this.scale.toString());
+        if (this.julia) {
+            params.set('julia', 'true');
+            params.set('c_r', this.c_r.toString());
+            params.set('c_i', this.c_i.toString());
+        }
+
+        const hash = `#${params.toString()}`;
+        if (replace)
+            window.location.replace(hash);
+        else
+            window.location.assign(hash);
+    }
+
+    pan_zoom(r, i, scale) {
+        const cfg = new Config();
+        cfg.algorithm = this.algorithm;
+        cfg.r_mid = r;
+        cfg.i_mid = i;
+        cfg.scale = scale;
+        cfg.julia = this.julia;
+        cfg.c_r = this.c_r;
+        cfg.c_i = this.c_i;
+        return cfg;
+    }
+
+    reset_view() {
+        const defaults = algorithms[this.algorithm];
+        const cfg = new Config();
+        cfg.algorithm = this.algorithm;
+        cfg.r_mid = defaults.r_mid;
+        cfg.i_mid = defaults.i_mid;
+        cfg.scale = defaults.scale;
+        cfg.julia = this.julia;
+        cfg.c_r = this.c_r;
+        cfg.c_i = this.c_i;
+        return cfg;
+    }
+
+    transform_coords(x, y, width, height) {
+        const avg = (width + height) / 2;
+        const r_span = width / avg * this.scale;
+        const i_span = -height / avg * this.scale;
+        const r = this.r_mid + (x / width - 0.5) * r_span;
+        const i = this.i_mid + (y / height - 0.5) * i_span;
+        return {r, i};
     }
 }
 
