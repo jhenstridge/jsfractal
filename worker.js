@@ -33,7 +33,29 @@ const algorithms = {
             z_r = tmp;
         }
         return iter;
-    }
+    },
+
+    mandel3: (z_r, z_i, c_r, c_i) => {
+        let iter;
+        for (iter = 0; z_r*z_r + z_i*z_i < escape && iter < max_iter; iter++) {
+            // z -> z^3 + c
+            const r2 = z_r*z_r, i2 = z_i*z_i;
+            z_r = z_r * (r2 - 3*i2) + c_r;
+            z_i = z_i * (3*r2 - i2) + c_i;
+        }
+        return iter;
+    },
+
+    mandel4: (z_r, z_i, c_r, c_i) => {
+        let iter;
+        for (iter = 0; z_r*z_r + z_i*z_i < escape && iter < max_iter; iter++) {
+            // z -> z^4 + c
+            const r2 = z_r*z_r, i2 = z_i*z_i, ri=z_r*z_i;
+            z_r = r2*r2 + i2*i2 - 6*r2*i2 + c_r;
+            z_i = 4*ri*(r2 - i2) + c_i;
+        }
+        return iter;
+    },
 };
 
 self.addEventListener("message", (event) => {

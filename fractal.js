@@ -5,7 +5,17 @@ const algorithms = {
         r_mid: -0.5,
         i_mid: 0.0,
         scale: 3.5,
-    }
+    },
+    'mandel3': {
+        r_mid: 0.0,
+        i_mid: 0.0,
+        scale: 3.5,
+    },
+    'mandel4': {
+        r_mid: 0.0,
+        i_mid: 0.0,
+        scale: 3.5,
+    },
 };
 
 class Mandelbrot {
